@@ -8,10 +8,10 @@
      :target: http://dx.doi.org/10.5281/zenodo.#####
 
 ###############################
-DMTN-037 The Jointcal algorithm
+DMTN-037 DCR-matched template generation
 ###############################
 
-This note describes jointcal’s algorithm, fitting process, and currently available models.
+A description of the algorithm to calculate a model of the true sky and forward model atmospheric effects to create matched templates.
 
 View this technote at https://dmtn-037.lsst.io or see a preview of the current version in `this repo`_.
 
