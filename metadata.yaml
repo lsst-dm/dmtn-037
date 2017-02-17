@@ -13,7 +13,7 @@ serial_number: '037'
 doc_id: 'DMTN-037'
 
 # Title of the document, without the series/serial designation
-doc_title: 'The Jointcal algorithm'
+doc_title: 'DCR-matched template generation'
 
 # Author names, ordered as a list. Each author name should be formatted as 'First Last'
 authors:
@@ -37,7 +37,7 @@ authors:
 copyright: '2017, AURA/LSST'
 
 # Description. A short, 1-2 sentence statemement used by document indices.
-description: 'This note describes jointcal’s algorithm, fitting process, and currently available models.'
+description: 'A description of the algorithm to calculate a model of the true sky and forward model atmospheric effects to create matched templates..'
 
 # Abstract, if available
 # abstract: >
