@@ -8,7 +8,7 @@
      :target: http://dx.doi.org/10.5281/zenodo.#####
 
 ###############################
-DMTN-037 The Jointcal algorithm
+DMTN-037 DCR-matched template generation
 ###############################
 
 This note describes jointcal’s algorithm, fitting process, and currently available models.
