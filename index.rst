@@ -15,13 +15,21 @@
 Introduction
 ============
 
-As with any medium, light entering Earth's atmosphere will refract. If the incident light arrives from any direction other than straight overhead, then refraction will bend its path towards an observer such that it appears to come from a location closer to zenith (see :numref:`fig-atmos_refraction`). While the bulk refraction is easily corrected during astrometric calibration, water vapor in the atmosphere increases the index of refraction for bluer light, which leads to an angular refraction that is wavelength-dependent. Since optical telescopes have a finite bandwidth, this means that a point-like source along the direction towards zenith, possibly across multiple pixels. In :numref:`fig-max_dcr`, I calculate the absolute worst case DCR in each of the LSST bands by calculating the difference in refraction for two laser beams of light from the same position but each tuned to one of the extreme wavelengths of the filter. The DCR in this scenario is far more severe than a realistic source spectrum, but it illustrates how the effect will scale with wavelength and zenith angle. Please see `Appendix A: Refraction calculation`_ for details on the calculation of refraction used throughout this note.
+As with any medium, light entering Earth's atmosphere will refract.
+If the incident light arrives from any direction other than straight overhead, then refraction will bend its path towards an observer such that it appears to come from a location closer to zenith (see :numref:`fig-atmos_refraction`).
+While the bulk refraction is easily corrected during astrometric calibration, water vapor in the atmosphere increases the index of refraction for bluer light, which leads to an angular refraction that is wavelength-dependent.
+Since optical telescopes have a finite bandwidth, this means that a point-like source along the direction towards zenith, possibly across multiple pixels.
+In :numref:`fig-max_dcr`, I calculate the absolute worst case DCR in each of the LSST bands by calculating the difference in refraction for two laser beams of light from the same position but each tuned to one of the extreme wavelengths of the filter.
+The DCR in this scenario is far more severe than a realistic source spectrum, but it illustrates how the effect will scale with wavelength and zenith angle.
+Please see `Appendix A: Refraction calculation`_ for details on the calculation of refraction used throughout this note.
 
 .. figure:: /_static/refraction.gif
    :name: fig-atmos_refraction
    :target: http://target.link/url
 
-   Light incident from a source outside the Earth's atmosphere refracts and it's path bends towards zenith. To an observer on Earth, the source appears to be at a higher elevation angle :math:`\Delta E` than it truly is. For a quick and dirty approximation, :math:`\Delta E` (in arcseconds) :math:`\sim 90 - E` (in degrees) = zenith angle
+   Light incident from a source outside the Earth's atmosphere refracts and it's path bends towards zenith.
+   To an observer on Earth, the source appears to be at a higher elevation angle :math:`\Delta E` than it truly is.
+   For a quick and dirty approximation, :math:`\Delta E` (in arcseconds) :math:`\sim 90 - E` (in degrees) = zenith angle
 
 
 .. figure:: /_static/DCR_ZA-wavelength.png
@@ -34,42 +42,99 @@ As with any medium, light entering Earth's atmosphere will refract. If the incid
 DCR Correction
 ==============
 
-Because refraction is wavelength-dependent :eq:`eqn-refraction`, the smearing of astronomical sources will depend on their intrinsic spectrum. In practice, this appears as an elongation of the measured PSF in an image, and a jitter in the source location leading to mis-subtractions in difference imaging when looking for transient or variable sources. This effect can be properly corrected when designing a telescope by incorporating an atmospheric dispersion corrector (ADC) in the optical path in front of the detector, but it cannot be removed in software once the photons have been collected. Instead, we can mitigate the effect by building DCR-matched template images for subtraction, and use our knowledge of DCR to build a deep model of the sky from a collection of images taken under a range of observing conditions. 
+Because refraction is wavelength-dependent :eq:`eqn-refraction`, the smearing of astronomical sources will depend on their intrinsic spectrum. In practice, this appears as an elongation of the measured PSF in an image, and a jitter in the source location leading to mis-subtractions in difference imaging when looking for transient or variable sources.
+This effect can be properly corrected when designing a telescope by incorporating an atmospheric dispersion corrector (ADC) in the optical path in front of the detector, but it cannot be removed in software once the photons have been collected.
+Instead, we can mitigate the effect by building DCR-matched template images for subtraction, and use our knowledge of DCR to build a deep model of the sky from a collection of images taken under a range of observing conditions. 
+
+In the sections below, I begin by describing the notation and mathematical framework I will use to solve the problem.
+I will then lay out the details of my particular implementation of the algorithm, along with a brief discussion of approaches that I have not implemented but might be of interest in the future.
+Finally, I will give examples using data simulated using StarFast, as well as images from Decam.
 
 Mathematical framework
 ----------------------
+
+The point-spread function (PSF) of a point-like source is a combination of many effects arising from the telescope and its environment.
+In this note, I will assume that all instrumental effects have been properly measured and accounted for, though this is of course a simplification.
+Even without instrumental effects, though, we still have the atmosphere to contend with.
+Turbluence in the atmosphere leads to a blurring of images (seeing), and the severity can vary significantly between nights, or even over the same night.
+In my initial implementation I will ignore the effect of variable seeing, and use only observations with comparable PSFs, but in order to make full use of all the data available it will have to be addressed in the future (see section #REF).
+Thus, for this initial investigation I will assume that the only effect that changes the shape of the PSF over a set of observations is DCR.
+
+:numref:`fig-subband_diagram` below illustrates the approach of this algorithm. Since DCR arises from the change in the index of refraction of the atmosphere across a filter bandpass, if we can build a model sky in smaller sub-bands the effect is greatly reduced.
+Further, if DCR is the only effect on the PSF, then we can construct these sub-band models with a small enough bandwidth such that the model to be the same for all observations regardless of airmass and parallactic angle, except for a bulk shift of the entire image.
+We only measure the combined image from all sub-bands, however, so those shifted sub-band images must be added together, which results in an apparent elongation of the PSF.
 
 .. figure:: /_static/DCR_subband_diagram.png
    :name: fig-subband_diagram
    :target: http://target.link/url
 
-   A star observed at different parallactic and zenith angles may appear slightly elongated in the zenith direction, but this is due to DCR. If the full filter were split into two sub-bands (here **A** and **B**), the star would appear round(er) but shifted slightly from the position measured across the full band. If we assume that the 'true' image within each sub-band does not change, then the changing elongation in the **N** observed images along the zenith direction can be attributed to these shifts, which we can calculate with :eq:`eqn-refraction`.
+   A star observed at different parallactic and zenith angles may appear slightly elongated in the zenith direction, but this is due to DCR.
+   If the full filter were split into two sub-bands (here **A** and **B**), the star would appear round(er) but shifted slightly from the position measured across the full band.
+   If we assume that the 'true' image within each sub-band does not change, then the changing elongation in the **N** observed images along the zenith direction can be attributed to these shifts, which we can calculate with :eq:`eqn-refraction`.
    
+Notation
+^^^^^^^^
+
+I will use matrix notation throughout this note, with vectors written as lower case letters and 2D matrices written as upper case letters.
+In this context, images are written as vectors, with all of the pixel values unwrapped.
+To emphasize this point, I have added arrows over the vectors, though these don't convey any additional meaning.
+Image data is written as :math:`\overrightarrow{s_i}`, where the subscript :math:`i` loops over the input images, while model data is written as :math:`\overrightarrow{y_\alpha}` with the subscript :math:`\alpha` looping over sub-bands.
+
+The matrix :math:`B_{i\alpha}` encodes the transformation due to DCR of model plane :math:`\alpha` to image :math:`i`, and the reverse transformation is written as :math:`B_{\alpha i}^\star`.
+Since the sub-bands have a narrow bandwidth, the effect of DCR is a uniform shift of all pixels, so:
 
 .. math::
    :label: eqn-BB_identity
 
-   B_{i\alpha}^\star B_{\alpha i} = \mathbb{1}
+   B_{\alpha i}^\star B_{i\alpha} = \mathbb{1}
+
+Finally, the measured PSF of each image :math:`i` is given by :math:`Q^{(i)}`, which is a matrix that does not change the size of the image.
+Or, to put it in more familiar terms, it represents the convolution of any given image with the measured PSF of image :math:`i`.
+Since there is no current motivation to make the PSFs of sub-bands different from each other, one fiducial PSF is used for all models without any index: :math:`P`.
+
+Iterative solution derivation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The image :math:`\overrightarrow{s_i}` is the sum of all of the sub-band models, each shifted by the appropriate amount of DCR relative to the effective wavelength of the full filter from :eq:`eqn-DCR`:
 
 .. math::
    :label: eqn-basic_sum
 
-    \sum_\alpha B_{\alpha i}  \overrightarrow{y_\alpha} =  \overrightarrow{s_i}
+    \sum_\alpha B_{i\alpha}  \overrightarrow{y_\alpha} =  \overrightarrow{s_i}
+
+Applying the reverse shift for one sub-band :math:`\gamma`, we can re-write :eq:`eqn-basic_sum` as:
 
 .. math::
    :label: eqn-iterative_sum
 
-    \overrightarrow{y_\gamma} = B_{i\gamma}^\star  \overrightarrow{s_i} - B_{i\gamma}^\star  \sum_{\alpha  \neq \gamma} B_{\alpha i}  \overrightarrow{y_\alpha}  
+    \overrightarrow{y_\gamma} = B_{\gamma i}^\star  \overrightarrow{s_i} - B_{\gamma i}^\star  \sum_{\alpha  \neq \gamma} B_{i\alpha}  \overrightarrow{y_\alpha}  
 
-.. math::
-   :label: eqn-psf_iterative_sum
+While this may not at first appear to help, we can now solve this problem iteratively.
+In each iteration, we can solve for a new set of sub-band models :math:`\overrightarrow{y_\gamma}` using the solutions :math:`\overrightarrow{y_\alpha}` from the last iteration as fixed input.
 
-    Q_i\overrightarrow{y_\gamma} = B_{i\gamma}^\star  P \overrightarrow{s_i} - B_{i\gamma}^\star  \sum_{\alpha  \neq \gamma} B_{\alpha i}  Q_i \overrightarrow{y_\alpha}  
+Extension to variable seeing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+While not implemented yet, there is a fairly clear path forward to extend the iterative solution from :eq:`eqn-iterative_sum` to the case where additional effects beyond DCR introduce changes to the PSF
+Variable seeing is the primary concern in this case, but in principle instrumental and other effects could be accounted for in this manner as well. 
+
+Now, we need to convolve the model with the measured PSF of the image :math:`Q^{(i)}`, and convolve the image with the fiducial PSF used for the model :math:`P`.
+This modifies :eq:`eqn-basic_sum` above:
 
 .. math::
    :label: eqn-psf_sum
 
-   \sum_\alpha B_{\alpha i}  Q_i \overrightarrow{y_\alpha}  = P  \overrightarrow{s_i} 
+   \sum_\alpha B_{i\alpha}  Q^{(i)} \overrightarrow{y_\alpha}  = P  \overrightarrow{s_i} 
+
+Now we can once again apply the reverse shift for one sub-band, and re-write :eq:`eqn-psf_sum` as:
+
+.. math::
+   :label: eqn-psf_iterative_sum
+
+    Q^{(i)}\overrightarrow{y_\gamma} = B_{\gamma i}^\star  P \overrightarrow{s_i} - B_{\gamma i}^\star  \sum_{\alpha  \neq \gamma} B_{i\alpha}  Q^{(i)} \overrightarrow{y_\alpha}  
+
+Unfortunately, we now have improved estimates for :math:`Q^{(i)}\overrightarrow{y_\gamma}` when what we really want is :math:`y_\gamma`.
+This problem is identical to the standard problem of image co-addition, however, so at this point we would hook in an existing algorithm for combining images with variable PSFs.
 
 Implementation
 --------------
@@ -93,7 +158,8 @@ Simulated source spectra
 Appendix A: Refraction calculation
 ==================================
 
-While the true density and index of refraction of air varies significantly with altitude, I will follow :cite:`Stone1996` in approximating it as a simple exponential profile in density, that depends only on measured surface conditions. While this is an approximation, it is reportedly accurate to better than 10 milliarcseconds for observations within 65 degrees of zenith, which should be sufficient for normal LSST operations.
+While the true density and index of refraction of air varies significantly with altitude, I will follow :cite:`Stone1996` in approximating it as a simple exponential profile in density that depends only on measured surface conditions.
+While this is an approximation, it is reportedly accurate to better than 10 milliarcseconds for observations within 65 degrees of zenith, which should be sufficient for normal LSST operations.
 
 The refraction of monochromatic light is given by
 
@@ -104,6 +170,12 @@ The refraction of monochromatic light is given by
     &\simeq \kappa (n_0(\lambda) - 1) (1 - \beta) \tan z_0 - \kappa (1 - n_0(\lambda)) \left(\beta - \frac{n_0(\lambda) - 1}{2}\right) \tan^3z_0
 
 where :math:`n_0(\lambda)`, :math:`\kappa`, and :math:`\beta` are given by equations :eq:`eqn-n_lambda`, :eq:`eqn-kappa`, and :eq:`eqn-beta` below. 
+The differential refraction relative to a reference wavelength is simply:
+
+.. math::
+   :label: eqn-DCR
+
+   \Delta R(\lambda) = R(\lambda) - R(\lambda_{ref})
 
 The index of refraction as a function of wavelength :math:`\lambda` (in Angstroms) can be calculated from the relative humidity (:math:`RH`, in percent), surface air temperature (:math:`T`, in Kelvin), and pressure (:math:`P_s` in millibar):
 
