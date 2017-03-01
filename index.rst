@@ -12,6 +12,8 @@
 
    A description of the algorithm to calculate a model of the true sky and forward model atmospheric effects to create matched templates.
 
+.. sectnum::
+
 Introduction
 ============
 
@@ -39,8 +41,8 @@ Please see `Appendix A: Refraction calculation`_ for details on the calculation 
    Calculation of the maximum DCR in each of the LSST filters, as a function of zenith angle. 
 
 
-DCR Correction
-==============
+DCR iterative forward modeling
+==============================
 
 Because refraction is wavelength-dependent :eq:`eqn-refraction`, the smearing of astronomical sources will depend on their intrinsic spectrum. In practice, this appears as an elongation of the measured PSF in an image, and a jitter in the source location leading to mis-subtractions in difference imaging when looking for transient or variable sources.
 This effect can be properly corrected when designing a telescope by incorporating an atmospheric dispersion corrector (ADC) in the optical path in front of the detector, but it cannot be removed in software once the photons have been collected.
@@ -95,7 +97,7 @@ Since there is no current motivation to make the PSFs of sub-bands different fro
 Iterative solution derivation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The image :math:`\overrightarrow{s_i}` is the sum of all of the sub-band models, each shifted by the appropriate amount of DCR relative to the effective wavelength of the full filter from :eq:`eqn-DCR`:
+The image :math:`\overrightarrow{s_i}` is the sum of all of the sub-band models (see :numref:`fig-subband_diagram`), each shifted by the appropriate amount of DCR relative to the effective wavelength of the full filter from :eq:`eqn-DCR`:
 
 .. math::
    :label: eqn-basic_sum
@@ -111,6 +113,14 @@ Applying the reverse shift for one sub-band :math:`\gamma`, we can re-write :eq:
 
 While this may not at first appear to help, we can now solve this problem iteratively.
 In each iteration, we can solve for a new set of sub-band models :math:`\overrightarrow{y_\gamma}` using the solutions :math:`\overrightarrow{y_\alpha}` from the last iteration as fixed input.
+
+Once we have a set of model :math:`\overrightarrow{y_\gamma}`, we can use that to predict the template for a future observation :math:`k`:
+
+.. math::
+   :label: eqn-basic_template
+
+    \parallel \overrightarrow{s_k}\!\!\parallel  = \sum_\alpha B_{k\alpha}  \overrightarrow{y_\alpha}
+ 
 
 Extension to variable seeing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -139,6 +149,69 @@ This problem is identical to the standard problem of image co-addition, however,
 Implementation
 --------------
 
+There are four main factors to consider when turning :eq:`eqn-iterative_sum` into an effective algorithm: 
+what initial solution to use as the starting point for iterations,
+what conditioning to apply to the new solution found in each iteration,
+how to detect and down-weight contaminated data,
+and how to determine when to exit the loop.
+
+
+Finding the initial solution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Assuming we have no prior spectral information, the best initial guess is that all sub-bands have the same flux in all pixels.
+If all model planes are equal at the start, a good guess for the flux distribution within a sub-band is the standard co-add of the input images, divided by the number of model planes being used (since those will be summed).
+A proper inverse-variance weighting of the input images as part of the coaddition will help make the best estimate, and if there are many input images we could restrict the coaddition to use only those observed near zenith (with negligible DCR).
+An advantage of selecting the simple coadd as the starting point, is that the solution should immediately converge if the input data exhibits no actual DCR effects, such as *i*-band or zenith observations.
+However, since this image is only the starting point of an iterative process, the final solution should not be sensitive to small errors at this stage.
+
+
+Conditioning the iterative solution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A common failure mode of iterative forward modeling algorithms is oscillating solutions.
+In these cases, :eq:`eqn-iterative_sum` may produce intermediate solutions for :math:`\overrightarrow{y_\gamma}` with very large amplitude in one iteration, leading to very small amplitude (or negative) solutions in the next iteration, for example.
+Conditioning of the solution can mitigate this sort of failure, and also help reach convergence faster.
+Some useful types of conditioning include:
+
+* Instead of taking the current solution from :eq:`eqn-iterative_sum` directly, use the average of the current and last solutions.
+  This eliminates most instances of oscillating solutions, since it restricts the relative change of the solution between iterations.
+
+* Threshold the solutions.
+  Instead of solutions diverging through solutions oscillating between iterations, the solution might 'oscillate' between model planes.
+  While it is possible for all of the flux in an image to come from one single model plane, with zero from all others, there are limits.
+  Solutions with more flux near a source in a single plane than the initial coadd are likely to be unphysical, and also likely to be paired with deeply negative pixels in the other planes.
+  Care must be taken to avoid overly strict thresholds that impair convergence (such as applying the preceding test to even noise-like pixels), but reasonable restrictions can eliminate extreme outliers.
+
+* Frequency regularization.
+  In addition to comparing the current solution to the last or initial solutions, we could also apply restrictions on variations between model planes.
+  For example, we could calculate the slope (or higher derivatives) of the spectrum for every pixel in the model across the sub-bands, and apply a threshold.
+  Any values deviating more than a set amount from the line (or higher order curve) fit by that slope could be fixed to the fit instead, and minimum and maximum slopes could be set.
+  While I have written an option within the DCR modeling code to enforce this sort of regularization, in practice I have found the additional benefit to be negligible when combined with the preceding forms of conditioning, and leave it turned off by default.
+
+
+Weighting the input data
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Weighting of the input data takes two forms:
+weights that are static properties of the image (such as the variance plane),
+and dynamic weights that may change between iterations.
+
+* Static weights.
+  In most cases the static weights will be just the inverse of the variance planes of the images, and best practice is to maintain separate arrays of inverse-variance weighted image values and the corresponding inverse variance values.
+  All transformations and convolutions are applied to both equally, and the properly weighted solution is the transformed weighted-image sum divided by the transformed weights sum.
+
+* Dynamic weights.
+  The simplest form of dynamic weights is a flag, which indicates whether a particular image is to be used in calculating the new solution with :eq:`eqn-iterative_sum` or not.
+  If an estimated template is made for each image using the new solution and equation :eq:`eqn-basic_template`, then those templates should become a better fit to the images with every iteration.
+  While it is possible to have a catastrophic failure where the model performs worse for *all* images, it might also improve for most and degrade for a few.
+  For example, if there are astrometric errors for one image, the pixel-based model may be misaligned to that image and the subtraction residuals may increase between iterations.
+  In that case, that image would hurt the calculation of the overall model more than the additional data was helping it, and that image should be excluded from the next iteration.
+  However, in case the apparent divergence was a fluke, convergence should still be tested for that image on all subsequent iterations in case the fit improves with a better model.
+  It might be possible to re-calibrate images that are flagged in this way, with the hope that an improved astrometric solution would also improve the fit to the model.
+
+Determining the end condition
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Examples with simulated images
 ------------------------------
