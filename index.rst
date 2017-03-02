@@ -213,6 +213,35 @@ and dynamic weights that may change between iterations.
 Determining the end condition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Iterative forward modeling does not have an end condition that can be predetermined, and without setting a limit it would run indefinitely.
+Possible end conditions include:
+
+* Fixed time / number of iterations.
+  The simplest option is to set an upper bound on the number of iterations, to ensure that the loop does exit within a finite time.
+  However, the limit should be set high enough that it does not get hit in typical useage.
+
+* Test for convergence.
+  There are two types of tests that check for convergence; one that is fast and one that is accurate.
+  The fast check simply compares the rate of change of the solution, and if the difference between the new and the last solution is less than a specified threshold fraction of the average of the two the solution has converged.
+  The accurate check, on the other hand, creates a template for each image using :eq:`eqn-basic_template`, and calculates a convergence metric from the difference of each image from its template.
+  Once the convergence metric changes by less than a specified level between iterations we can safely exit the loop since additional iterations will provide insignificant improvement.
+  This is slower since templates must be created for each image, for every iteration, but that has the advantage of allowing convergence to be checked for each individual image at no extra cost (see "Dynamic weights" above).
+  If the extra computational cost is not considered prohibitive, then the second test of convergence is far superior, since it is more accurate and enables additional tests and weighting.
+
+* Test for divergence.
+  If a template is made for testing convergence, we should naturally test also for divergence.
+  If the convergence metric actually degrades with a new iteration, that is a clear sign that some feature of the image is being modeled incorrectly and more iterations will only exacerbate the problem.
+  One special case is if only some of the images degrade, because it is possible that they contain astrometric or other errors, and we could choose to continue with those observations flagged (see "Dynamic weights" above).
+  Otherwise, it is safest to exit immediately and discard the solution from the current iteration, using the last solution from before it started to diverge instead.
+
+  * One possible modification is to calculate a spatially-varying convergence metric, and mask regions that degrade in future iterations.
+    This allows an improved solution to be found even if one very bright feature (such as an improperly-masked saturated star or cosmic ray) is modeled incorrectly.
+
+
+Note that if a convergence test is used, it should only be allowed to exit the loop after a minimum number of iterations have passed.
+It will depend on how the convergence metric is calculated and the choice of initial solution, but the first iteration can show a slight degradation of convergence.
+
+
 Examples with simulated images
 ------------------------------
 
@@ -228,7 +257,7 @@ The DCR Sky Model
 Simulated source spectra
 ------------------------
 
-Appendix A: Refraction calculation
+Appendix: Refraction calculation
 ==================================
 
 While the true density and index of refraction of air varies significantly with altitude, I will follow :cite:`Stone1996` in approximating it as a simple exponential profile in density that depends only on measured surface conditions.
