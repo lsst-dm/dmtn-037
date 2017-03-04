@@ -23,7 +23,7 @@ While the bulk refraction is easily corrected during astrometric calibration, wa
 Since optical telescopes have a finite bandwidth, this means that a point-like source along the direction towards zenith, possibly across multiple pixels.
 In :numref:`fig-max_dcr`, I calculate the absolute worst case DCR in each of the LSST bands by calculating the difference in refraction for two laser beams of light from the same position but each tuned to one of the extreme wavelengths of the filter.
 The DCR in this scenario is far more severe than a realistic source spectrum, but it illustrates how the effect will scale with wavelength and zenith angle.
-Please see `Appendix A: Refraction calculation`_ for details on the calculation of refraction used throughout this note.
+Please see `Appendix: Refraction calculation`_ for details on the calculation of refraction used throughout this note.
 
 .. figure:: /_static/refraction.gif
    :name: fig-atmos_refraction
@@ -154,6 +154,7 @@ what initial solution to use as the starting point for iterations,
 what conditioning to apply to the new solution found in each iteration,
 how to detect and down-weight contaminated data,
 and how to determine when to exit the loop.
+These factors will each be described in a subsection below.
 
 
 Finding the initial solution
@@ -245,10 +246,61 @@ It will depend on how the convergence metric is calculated and the choice of ini
 Examples with simulated images
 ------------------------------
 
+To test the above algorithm, I first ran it on images simulated using `StarFast <http://dmtn-012.lsst.io/en/latest/>`_.
+As shown in :numref:`fig-sim_image` below, these images contain a moderately crowded field of stars (no galaxies) with Kolmogorov double-gaussian PSFs, realistic SEDs, photon shot noise, and no other effects other than DCR.
+In this example, the model is built using three frequency planes and eight input simulations of the field, with airmass ranging between 1.0 and 2.0 (*not* including the simulated observation shown in :numref:`fig-sim_image`).
+I use :eq:`eqn-basic_template` to build a DCR-matched template for the simulated observation (:numref:`fig-sim_template`), and subtract this template to make the difference image (:numref:`fig-sim_template_diff`).
+For comparison, in :numref:`fig-sim_image_diff` I subtract a second simulated image generated with the same field 10 degrees closer to zenith.
+This last 
+
+.. figure:: /_static/simulations/simulated_108_image.png
+   :name: fig-sim_image
+
+   Simulated g-band image with airmass 1.3
+
+.. figure:: /_static/simulations/simulated_image_108_template.png
+   :name: fig-sim_template
+
+   The DCR-matched template for the simulated image in :numref:`fig-sim_image`.
+
+.. figure:: /_static/simulations/simulated_image_108_template_difference.png
+   :name: fig-sim_template_diff
+
+   Difference image of :numref:`fig-sim_image` - :numref:`fig-sim_template`.
+
+.. figure:: /_static/simulations/simulated_image_108_110_difference.png
+   :name: fig-sim_image_diff
+
+   Difference image of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
 
 Examples with DECam images
 --------------------------
 
+For a more rigorous test, I have also built DCR-matched templates for `DECam HiTS <https://arxiv.org/abs/1609.03567>`_ observations, which were calibrated and provided by Francisco Förster. 
+For these images I used the implementation outlined above using the simplified equation :eq:`eqn-iterative_sum`, despite the images having variable seeing.
+Because I have not yet implemented :eq:`eqn-psf_iterative_sum` using measured PSFs for each image, I have simply excluded observations with PSF FWHWs greater than 4 pixels (2.5 - 4 pixel widths are common). 
+
+
+.. figure:: /_static/Decam/0410998_image.png
+   :name: fig-decam_image
+
+   Decam observation 410998, 'g'-band with airmass 1.33.
+
+.. figure:: /_static/Decam/0410998_template.png
+   :name: fig-decam_template
+
+   The DCR-matched template for 410998, constructed from 12 observations with airmass ranging between 1.13 and 1.77.
+   Note that the noise level is significantly decreased.
+
+.. figure:: /_static/Decam/0410998-template_difference.png
+   :name: fig-decam_template_diff
+
+   Difference image of :numref:`fig-decam_image` - :numref:`fig-decam_template`.
+
+.. figure:: /_static/Decam/0410998-0411232_difference.png
+   :name: fig-decam_image_diff
+
+   Difference image of :numref:`fig-decam_image` with a second DECam observation taken approximately 10 degrees closer to zenith (at airmass 1.23).
 
 The DCR Sky Model
 =================
