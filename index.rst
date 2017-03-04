@@ -251,7 +251,6 @@ As shown in :numref:`fig-sim_image` below, these images contain a moderately cro
 In this example, the model is built using three frequency planes and eight input simulations of the field, with airmass ranging between 1.0 and 2.0 (*not* including the simulated observation shown in :numref:`fig-sim_image`).
 I use :eq:`eqn-basic_template` to build a DCR-matched template for the simulated observation (:numref:`fig-sim_template`), and subtract this template to make the difference image (:numref:`fig-sim_template_diff`).
 For comparison, in :numref:`fig-sim_image_diff` I subtract a second simulated image generated with the same field 10 degrees closer to zenith.
-This last 
 
 .. figure:: /_static/simulations/simulated_108_image.png
    :name: fig-sim_image
@@ -279,7 +278,7 @@ Examples with DECam images
 For a more rigorous test, I have also built DCR-matched templates for `DECam HiTS <https://arxiv.org/abs/1609.03567>`_ observations, which were calibrated and provided by Francisco Förster. 
 For these images I used the implementation outlined above using the simplified equation :eq:`eqn-iterative_sum`, despite the images having variable seeing.
 Because I have not yet implemented :eq:`eqn-psf_iterative_sum` using measured PSFs for each image, I have simply excluded observations with PSF FWHWs greater than 4 pixels (2.5 - 4 pixel widths are common). 
-
+However, it should be noted that the images with PSFs at the larger end of that range are not as well matched by their templates, so restricting the input images going into the model to those with good seeing may not be sufficient in the future.
 
 .. figure:: /_static/Decam/0410998_image.png
    :name: fig-decam_image
