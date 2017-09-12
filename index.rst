@@ -267,7 +267,7 @@ For comparison, in :numref:`fig-sim_image_diff` I subtract a second simulated im
 
    Difference image of :numref:`fig-sim_image` - :numref:`fig-sim_template`.
 
-.. figure:: /_static/simulations/simulated_image_108_110_difference.png
+.. figure:: /_static/simulations/simulated_image_108_112_difference.png
    :name: fig-sim_image_diff
 
    Difference image of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
