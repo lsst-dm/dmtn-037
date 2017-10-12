@@ -17,26 +17,52 @@
 Introduction
 ============
 
+.. figure:: /_static/StarFast_1.3_airmass_10deg_diff.png
+   :name: fig-intro_dipoles
+   :target: http://target.link/url
+
+   A difference of two simulated g-band images, observed at elevation angles 10 degrees apart, with no PSF matching to show the dipoles characteristic of mis-subtraction.
+
+Differential Chromatic Refraction (DCR) stretches sources along the zenith direction, so that the sources appear to shift position and the PSF elongates.
+If all sources had the same spectrum we could correct for the elongation of the PSF with standard PSF-matching tools.
+In practice, treating DCR in this way can reduce the severity of most of the dipoles in a difference image, since many sources have roughly the same spectrum, but it will make others worse when they don't match the set selected for calibration.
+In :numref:`fig-intro_dipoles` most of the dipoles point in the same direction since the majority of sources in the simulation have similar (though not identical) spectra, but there are clearly several sources with different spectra where the diploes point in the opposite direction.
+These differences can't be accounted for simply with a spatially-varying PSF matching kernel, because the distribution of sources with different spectra is not a simple spatially-varying function; a quasar may be surrounded by a very red galaxy, or a cool, red, star may appear in front of a cluster of young hot stars.
+
+Fundamentally, the problem with correcting DCR through any type of astrometric calibration or PSF matching is that a given pixel of a CCD collects photons from a different solid angle of the sky, and that solid angle depends on wavelength and the observing conditions.
+Coadding or differencing two images taken under different conditions mixes flux from (slightly) different directions in every pixel, and if the conditions are different enough the quality of the images will degrade (see :numref:`fig-max_dcr` below for an estimate).
+Instead, we must use our knowledge of DCR to build deep estimates of the un-refracted sky at sub-filter wavelength resolution, and forward model template images to use for image differencing.
+
+Below, I will first briefly discuss Differential Chromatic Refraction (DCR) in the context of optical telescopes, and LSST in particular.
+Next I describe my `DCR iterative forward modeling`_ approach for solving DCR with software, including the `Mathematical framework`_, `Implementation`_, `Examples with simulated images`_, and `Examples with DECam images`_.
+I wrap up with a discussion of `The DCR Sky Model`_, a new data product made possible by this approach that allows me to recover `Simulated source spectra`_.
+
+
+
+The origins of Differential Chromatic Refraction
+------------------------------------------------
+
 As with any medium, light entering Earth's atmosphere will refract.
 If the incident light arrives from any direction other than straight overhead, then refraction will bend its path towards an observer such that it appears to come from a location closer to zenith (see :numref:`fig-atmos_refraction`).
-While the bulk refraction is easily corrected during astrometric calibration, water vapor in the atmosphere increases the index of refraction for bluer light, which leads to an angular refraction that is wavelength-dependent.
-Since optical telescopes have a finite bandwidth, this means that a point-like source along the direction towards zenith, possibly across multiple pixels.
+While the bulk refraction is easily corrected during astrometric calibration, the index of refraction increases for bluer light and leads to an angular refraction that is wavelength-dependent.
+Since optical telescopes have a finite bandwidth, this means that a point-like source will get smeared along the direction towards zenith, possibly across multiple pixels.
 In :numref:`fig-max_dcr`, I calculate the absolute worst case DCR in each of the LSST bands by calculating the difference in refraction for two laser beams of light from the same position but each tuned to one of the extreme wavelengths of the filter.
 The DCR in this scenario is far more severe than a realistic source spectrum, but it illustrates how the effect will scale with wavelength and zenith angle.
 Please see `Appendix: Refraction calculation`_ for details on the calculation of refraction used throughout this note.
 
 .. figure:: /_static/refraction.gif
    :name: fig-atmos_refraction
-   :target: http://target.link/url
+   :target: http://www.astro.caltech.edu/~mcs/CBI/pointing/
 
    Light incident from a source outside the Earth's atmosphere refracts and it's path bends towards zenith.
    To an observer on Earth, the source appears to be at a higher elevation angle :math:`\Delta E` than it truly is.
-   For a quick and dirty approximation, :math:`\Delta E` (in arcseconds) :math:`\sim 90 - E` (in degrees) = zenith angle
+   For a quick and dirty approximation, :math:`\Delta E` (in arcseconds) :math:`\sim 90 - E` (in degrees) = zenith angle.
+   (Image credit: Martin Shepherd, Caltech)
 
 
 .. figure:: /_static/DCR_ZA-wavelength.png
    :name: fig-max_dcr
-   :target: http://target.link/url
+   :target: https://dmtn-017.lsst.io
 
    Calculation of the maximum DCR in each of the LSST filters, as a function of zenith angle. 
 
@@ -44,13 +70,14 @@ Please see `Appendix: Refraction calculation`_ for details on the calculation of
 DCR iterative forward modeling
 ==============================
 
-Because refraction is wavelength-dependent :eq:`eqn-refraction`, the smearing of astronomical sources will depend on their intrinsic spectrum. In practice, this appears as an elongation of the measured PSF in an image, and a jitter in the source location leading to mis-subtractions in difference imaging when looking for transient or variable sources.
+Because refraction is wavelength-dependent :eq:`eqn-refraction`, the smearing of astronomical sources will depend on their intrinsic spectrum.
+In practice, this appears as an elongation of the measured PSF in an image, and a jitter in the source location leading to mis-subtractions in image differencing when looking for transient or variable sources.
 This effect can be properly corrected when designing a telescope by incorporating an atmospheric dispersion corrector (ADC) in the optical path in front of the detector, but it cannot be removed in software once the photons have been collected.
 Instead, we can mitigate the effect by building DCR-matched template images for subtraction, and use our knowledge of DCR to build a deep model of the sky from a collection of images taken under a range of observing conditions. 
 
 In the sections below, I begin by describing the notation and mathematical framework I will use to solve the problem.
 I will then lay out the details of my particular implementation of the algorithm, along with a brief discussion of approaches that I have not implemented but might be of interest in the future.
-Finally, I will give examples using data simulated using StarFast, as well as images from Decam.
+Finally, I will give examples using data simulated using `StarFast <http://dmtn-012.lsst.io/en/latest/>`_, as well as images from the `DECam HiTS <https://arxiv.org/abs/1609.03567>`_ survey.
 
 Mathematical framework
 ----------------------
@@ -59,7 +86,7 @@ The point-spread function (PSF) of a point-like source is a combination of many 
 In this note, I will assume that all instrumental effects have been properly measured and accounted for, though this is of course a simplification.
 Even without instrumental effects, though, we still have the atmosphere to contend with.
 Turbluence in the atmosphere leads to a blurring of images (seeing), and the severity can vary significantly between nights, or even over the same night.
-In my initial implementation I will ignore the effect of variable seeing, and use only observations with comparable PSFs, but in order to make full use of all the data available it will have to be addressed in the future (see section #REF).
+In my initial implementation I will ignore the effect of variable seeing, and use only observations with comparable PSFs, but in order to make full use of all the data available it will have to be addressed in the future (see `Extension to variable seeing`_).
 Thus, for this initial investigation I will assume that the only effect that changes the shape of the PSF over a set of observations is DCR.
 
 :numref:`fig-subband_diagram` below illustrates the approach of this algorithm. Since DCR arises from the change in the index of refraction of the atmosphere across a filter bandpass, if we can build a model sky in smaller sub-bands the effect is greatly reduced.
@@ -68,7 +95,6 @@ We only measure the combined image from all sub-bands, however, so those shifted
 
 .. figure:: /_static/DCR_subband_diagram.png
    :name: fig-subband_diagram
-   :target: http://target.link/url
 
    A star observed at different parallactic and zenith angles may appear slightly elongated in the zenith direction, but this is due to DCR.
    If the full filter were split into two sub-bands (here **A** and **B**), the star would appear round(er) but shifted slightly from the position measured across the full band.
@@ -81,6 +107,7 @@ I will use matrix notation throughout this note, with vectors written as lower c
 In this context, images are written as vectors, with all of the pixel values unwrapped.
 To emphasize this point, I have added arrows over the vectors, though these don't convey any additional meaning.
 Image data is written as :math:`\overrightarrow{s_i}`, where the subscript :math:`i` loops over the input images, while model data is written as :math:`\overrightarrow{y_\alpha}` with the subscript :math:`\alpha` looping over sub-bands.
+While it is often convenient for :math:`\overrightarrow{y_\alpha}` to have the same resolution and overall pixelization as :math:`\overrightarrow{s_i}`, in general even a non-gridded pixelization such as `HEALPix <https://healpix.jpl.nasa.gov>`_ could be used.
 
 The matrix :math:`B_{i\alpha}` encodes the transformation due to DCR of model plane :math:`\alpha` to image :math:`i`, and the reverse transformation is written as :math:`B_{\alpha i}^\star`.
 Since the sub-bands have a narrow bandwidth, the effect of DCR is a uniform shift of all pixels, so:
@@ -92,7 +119,7 @@ Since the sub-bands have a narrow bandwidth, the effect of DCR is a uniform shif
 
 Finally, the measured PSF of each image :math:`i` is given by :math:`Q^{(i)}`, which is a matrix that does not change the size of the image.
 Or, to put it in more familiar terms, it represents the convolution of any given image with the measured PSF of image :math:`i`.
-Since there is no current motivation to make the PSFs of sub-bands different from each other, one fiducial PSF is used for all models without any index: :math:`P`.
+Ignoring effects such as von Karmen turbulence that may lead to a wavelength-dependent PSF size, one fiducial PSF is used for all models without any index: :math:`P`.
 
 Iterative solution derivation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -112,7 +139,8 @@ Applying the reverse shift for one sub-band :math:`\gamma`, we can re-write :eq:
     \overrightarrow{y_\gamma} = B_{\gamma i}^\star  \overrightarrow{s_i} - B_{\gamma i}^\star  \sum_{\alpha  \neq \gamma} B_{i\alpha}  \overrightarrow{y_\alpha}  
 
 While this may not at first appear to help, we can now solve this problem iteratively.
-In each iteration, we can solve for a new set of sub-band models :math:`\overrightarrow{y_\gamma}` using the solutions :math:`\overrightarrow{y_\alpha}` from the last iteration as fixed input.
+In each iteration, we can solve for a new set of sub-band models :math:`\overrightarrow{y_\gamma}` using the solutions from the last iteration as fixed input.
+I will discuss the solutions :math:`\overrightarrow{y_\gamma}` in a later section, `The DCR Sky Model`_.
 
 Once we have a set of model :math:`\overrightarrow{y_\gamma}`, we can use that to predict the template for a future observation :math:`k`:
 
@@ -163,7 +191,7 @@ Finding the initial solution
 Assuming we have no prior spectral information, the best initial guess is that all sub-bands have the same flux in all pixels.
 If all model planes are equal at the start, a good guess for the flux distribution within a sub-band is the standard co-add of the input images, divided by the number of model planes being used (since those will be summed).
 A proper inverse-variance weighting of the input images as part of the coaddition will help make the best estimate, and if there are many input images we could restrict the coaddition to use only those observed near zenith (with negligible DCR).
-An advantage of selecting the simple coadd as the starting point, is that the solution should immediately converge if the input data exhibits no actual DCR effects, such as *i*-band or zenith observations.
+An advantage of selecting the simple coadd as the starting point, is that the solution should immediately converge if the input data exhibits no actual DCR effects, such as redder bands (*i*-band or redder for LSST) or zenith observations.
 However, since this image is only the starting point of an iterative process, the final solution should not be sensitive to small errors at this stage.
 
 
@@ -175,8 +203,11 @@ In these cases, :eq:`eqn-iterative_sum` may produce intermediate solutions for :
 Conditioning of the solution can mitigate this sort of failure, and also help reach convergence faster.
 Some useful types of conditioning include:
 
-* Instead of taking the current solution from :eq:`eqn-iterative_sum` directly, use the average of the current and last solutions.
+* Instead of taking the current solution from :eq:`eqn-iterative_sum` directly, use a weighted average of the current and last solutions.
   This eliminates most instances of oscillating solutions, since it restricts the relative change of the solution between iterations.
+  In the current implementation, the weights are chosen to be the convergence metrics of the two solutions, which allows the overall solution to converge rapidly when possible but cautiously if the solutions oscillate.
+  While the increased rate towards convergence is helpful for well behaved data, the greatest benefit appears when using larger numbers of subfilters.
+
 
 * Threshold the solutions.
   Instead of solutions diverging through solutions oscillating between iterations, the solution might 'oscillate' between model planes.
@@ -228,6 +259,7 @@ Possible end conditions include:
   Once the convergence metric changes by less than a specified level between iterations we can safely exit the loop since additional iterations will provide insignificant improvement.
   This is slower since templates must be created for each image, for every iteration, but that has the advantage of allowing convergence to be checked for each individual image at no extra cost (see "Dynamic weights" above).
   If the extra computational cost is not considered prohibitive, then the second test of convergence is far superior, since it is more accurate and enables additional tests and weighting.
+  The level of convergence reached will clearly impact the quality of the results; see `Simulated source spectra`_ below for more analysis.
 
 * Test for divergence.
   If a template is made for testing convergence, we should naturally test also for divergence.
@@ -251,6 +283,7 @@ As shown in :numref:`fig-sim_image` below, these images contain a moderately cro
 In this example, the model is built using three frequency planes and eight input simulations of the field, with airmass ranging between 1.0 and 2.0 (*not* including the simulated observation shown in :numref:`fig-sim_image`).
 I use :eq:`eqn-basic_template` to build a DCR-matched template for the simulated observation (:numref:`fig-sim_template`), and subtract this template to make the difference image (:numref:`fig-sim_template_diff`).
 For comparison, in :numref:`fig-sim_image_diff` I subtract a second simulated image generated with the same field 10 degrees closer to zenith.
+Note that the noise in :numref:`fig-sim_template_diff` is :math:`\sim \sqrt{2}` lower than in :numref:`fig-sim_image_diff`, because the template is a form of coadded image with significantly lower noise than an individual exposure.
 
 .. figure:: /_static/simulations/simulated_108_image.png
    :name: fig-sim_image
@@ -265,12 +298,26 @@ For comparison, in :numref:`fig-sim_image_diff` I subtract a second simulated im
 .. figure:: /_static/simulations/simulated_image_108_template_difference.png
    :name: fig-sim_template_diff
 
-   Difference image of :numref:`fig-sim_image` - :numref:`fig-sim_template`.
+   Image difference of the simulated image :numref:`fig-sim_image` with its template from :numref:`fig-sim_template`.
 
 .. figure:: /_static/simulations/simulated_image_108_112_difference.png
    :name: fig-sim_image_diff
 
-   Difference image of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
+   Image difference of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
+
+Dipole mitigation
+^^^^^^^^^^^^^^^^^^
+
+A quantitative assessment of the quality of the template from :numref:`fig-sim_template` is the number of false detection in the image difference, :numref:`fig-sim_template_diff`.
+Since there are no moving or variable sources in these simulated images, any source detected in the image difference is a false detection.
+From comparing  :numref:`fig-sim_template_diff` and :numref:`fig-sim_image_diff` it is clear by eye that the DCR-matched template produces fewer dipoles, and we can see in :numref:`fig-dcr_dipoles` that this advantage holds regardless of airmass or elevation angle.
+The DCR-matched template appears to perform about as well as an exposure taken within 5 degrees of the science image, but recall that the noise - and therefore the detection limit - is higher when using a single image as a template.
+
+
+.. figure:: /_static/simulations/DCR_dipole_plot.png
+   :name: fig-dcr_dipoles
+
+   Plot of the number of false detections for simulated images as a function of airmass, for different templates.
 
 Examples with DECam images
 --------------------------
@@ -299,14 +346,98 @@ However, it should be noted that the images with PSFs at the larger end of that 
 .. figure:: /_static/Decam/0410998-0411232_difference.png
    :name: fig-decam_image_diff
 
-   Difference image of :numref:`fig-decam_image` with a second DECam observation taken approximately 10 degrees closer to zenith (at airmass 1.23).
+   Image difference of :numref:`fig-decam_image` with a second DECam observation taken an hour later and approximately 10 degrees closer to zenith (at airmass 1.23).
+
+From the above images we can make several observations.
+First is that the DCR-matched template in :numref:`fig-decam_template_diff` performs at least as well as a well-matched reference image taken within an hour and 10 degrees of our science image (:numref:`fig-decam_image_diff`).
+The DCR-matched template, however, has significantly reduced noise and artifacts (such as cosmic rays), since we are able to coadd 12 observations because we are not constrained by needing to match observing conditions.
+Thus, a DCR-matched template calculated at zenith should provide the cleanest and deepest estimate of the static sky possible from the LSST survey, since we can coadd all images without sacrificing image quality or resolution.
+
+While constructing the DCR sky model for a full DECam CCD was time consuming on my laptop (taking about 10 minutes on one core), forward modeling a DCR-matched template from the model takes only 1-2 seconds on the same machine.
+Adding variable the PSFs from :eq:`eqn-psf_iterative_sum` will increase the time required to calculate the DCR sky model, but should not increase the time to forward model templates.
 
 The DCR Sky Model
 =================
 
 
+The DCR sky model :math:`\overrightarrow{y_\alpha}` from :eq:`eqn-iterative_sum`  consists of a deep coadd in each subfilter :math:`\alpha`.
+As with other coadds, the images are defined on instrument-agnostic tracts and patches of the sky, and must be warped to the WCS of the science image after constructing templates with :eq:`eqn-basic_template`.
+While the sky model was designed for quickly building matched templates for image differencing, it is an interesting data product in its own right.
+For example, we can run source detection and measurement on each sub-filter image :math:`\overrightarrow{y_\alpha}` and measure the spectra of sources within a single band.
+An example visualization of the sub-bands of the DCR sky model is in :numref:`fig-filled_footprints`, below, while a more detailed look at spectra is in `Simulated source spectra`_.
+This view can help identify sources with steep or unusual spectra, such as quasars with high emission in a narrow band, and could be used to help deblending and star-galaxy separation.
+However, because of the inherent assumption that the true sky is static it cannot estimate the spectrum of transient or variable sources.
+
+
+.. figure:: /_static/sim_filled_footprints_color2.png
+   :name: fig-filled_footprints
+
+   Source measurements in three sub-bands of the DCR sky model are converted to RGB values and used to fill the footprints of detected sources.
+   The combined full-band model is displayed behind the footprint overlay.
+
+
 Simulated source spectra
 ------------------------
+
+As mentioned above, we can look in more detail at the spectra of individual sources.
+The simulated images contain roughly 2500 stars ranging from type M to type B, with a distribution that follows local abundances.
+Each star is simulated at high frequency resolution using Kurucz SED profiles and propagated through a model of the LSST g-band filter bandpass, so it is straightforward to compare the measured spectrum of a source to its input spectrum once it is matched.
+To measure the subfilter source spectra, I run a modified version of multiband photometry from the LSST software stack.
+This performs source detection on each subfilter coadd image, merges the detections from all subfilters, and performs forced photometry on each.
+A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_bright1` - :numref:`fig-starspectrum_faint` below.
+
+.. figure:: /_static/spectra/star_spectra_sim398_bright.png
+   :name: fig-starspectrum_bright1
+
+   Example input spectrum for a type F star with surface temperature ~7230K (solid blue).
+   The flux measured in each sub-band is marked with a with red '+', and the average values of the simulated spectrum across each subfilter is marked with a blue 'x' for comparison.
+
+.. figure:: /_static/spectra/star_spectra_sim399_bright.png
+   :name: fig-starspectrum_bright2
+
+   Example input spectrum for a type F star with surface temperature ~6020K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_bright1`.
+
+.. figure:: /_static/spectra/star_spectra_sim300_mid.png
+   :name: fig-starspectrum_mid
+
+   Example input spectrum for a type G  star with surface temperature ~5560K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_bright1`.
+
+.. figure:: /_static/spectra/star_spectra_sim200_bright.png
+   :name: fig-starspectrum_mid2
+
+   Example input spectrum for a type K  star with surface temperature ~4560K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_bright1`.
+
+.. figure:: /_static/spectra/star_spectra_sim004_faint.png
+   :name: fig-starspectrum_faint
+
+   Example input spectrum for a type M star with surface temperature ~3620K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_bright1`.
+
+While the above spectra are representative of the typical stars in the simulation, it is helpful to look at the entire set.
+For this comparison, in :numref:`fig-colorcolor01` below I plot the simulated color between the blue and the red subfilters against the measured color, ignoring the center subfilter.
+For this example, I let the forward modeling proceed until it reached 1% convergence, which took 8 iterations.
+While there is a clear correlation between the measured and simulated spectra the slope is clearly off, with the measurements flatter than the simulations.
+If a 0.1% convergence threshold is used, however, then after 24 iterations the agreement improves (:numref:`fig-colorcolor001`).
+The example spectra in :numref:`fig-starspectrum_bright1` - :numref:`fig-starspectrum_faint` above used the 0.1% threshold.
+
+.. figure:: /_static/spectra/color-color_sim01.png
+   :name: fig-colorcolor01
+
+   Simulated - measured color of detected sources within g-band with a 1% convergence threshold.
+
+.. figure:: /_static/spectra/color-color_sim001.png
+   :name: fig-colorcolor001
+
+   Simulated - measured color of detected sources within g-band with a 0.1% convergence threshold.
+
+.. Comment out this figure for now
+  .. figure:: /_static/spectra/color-color_sim003.png
+     :name: fig-colorcolor003
+
+     Simulated - measured color of detected sources within g-band with a 0.3% convergence threshold.
 
 Appendix: Refraction calculation
 ==================================
@@ -379,7 +510,6 @@ By assuming an exponential density profile for the atmosphere, the ratio :math:`
     &=  4.5908\times 10^{-6} T 
 
 where :math:`m` is the average mass of molecules in the atmosphere, :math:`R_\oplus` is the radius of the Earth, :math:`k_B` is the Boltzmann constant, and :math:`g_0` is the acceleration due to gravity at the Earth's surface.
-
 
 References
 ==========
