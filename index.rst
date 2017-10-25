@@ -110,7 +110,7 @@ Image data is written as :math:`\overrightarrow{s_i}`, where the subscript :math
 While it is often convenient for :math:`\overrightarrow{y_\alpha}` to have the same resolution and overall pixelization as :math:`\overrightarrow{s_i}`, in general even a non-gridded pixelization such as `HEALPix <https://healpix.jpl.nasa.gov>`_ could be used.
 
 The matrix :math:`B_{i\alpha}` encodes the transformation due to DCR of model plane :math:`\alpha` to image :math:`i`, and the reverse transformation is written as :math:`B_{\alpha i}^\star`.
-Since the sub-bands have a narrow bandwidth, the effect of DCR is a uniform shift of all pixels, so:
+Since the sub-bands have a narrow bandwidth (but see `Finite bandwidth considerations`_ below), the effect of DCR is a uniform shift of all pixels, so:
 
 .. math::
    :label: eqn-BB_identity
@@ -148,7 +148,49 @@ Once we have a set of model :math:`\overrightarrow{y_\gamma}`, we can use that t
    :label: eqn-basic_template
 
     \parallel \overrightarrow{s_k}\!\!\parallel  = \sum_\alpha B_{k\alpha}  \overrightarrow{y_\alpha}
- 
+
+Finite bandwidth considerations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When using three sub-bands for the DCR model the approximation that there is negligible DCR within a sub-band will break down for high airmass observations in the LSST g- or u-band.
+For example, the differential refraction between 420nm and 460nm under typical observing conditions and at airmass 1.3 is 0.27 arcseconds, or about one LSST pixel.
+With that amount of variation across a sub-band we clearly cannot expect the simple shift of :eq:`eqn-basic_sum` to work for both low and high airmass observations.
+One option would be to increase the number of sub-bands of the model, but this introduces additional degrees of freedom that may not be well constrained if we have only a few high airmass observations.
+Another option would be to exclude high airmass observations, but that would be very unfortunate because the large lever arm of DCR in those observations has the potential to better constrain the model (note that we could still build DCR-matched templates for high airmass observations, even if they are not used to calculate the model).
+Instead, we can modify :math:`B_{i\alpha}` to include the effective smearing caused by finite bandwidth:
+
+.. math::
+   :label: eqn-modified_B
+
+    {B}'_{i\alpha} = \int_{\alpha_0}^{\alpha_1} f(\lambda)B_{i\lambda}\mathrm{d}\lambda
+
+And :eq:`eqn-basic_sum` becomes:
+
+.. math::
+   :label: eqn-finite_sum
+
+    \sum_\alpha {B}'_{i\alpha}  \overrightarrow{y_\alpha} =  \overrightarrow{s_i}
+
+This transformation is the integral of the simple shift :math:`B_{i\alpha}` across the sub-band, optionally weighted by the filter profile :math:`f(\lambda)`.
+The identity :eq:`eqn-BB_identity` no longer holds, so we must either accept an approximation or attempt a deconvolution to obtain a modified :eq:`eqn-iterative_sum`.
+We have studiously avoided performing any outright deconvolutions, so in my implementation I instead neglect finite bandwidth effects in the reverse transformation and set :math:`{B'}_{i\alpha}^\star = {B}_{i\alpha}^\star`.
+Now :eq:`eqn-iterative_sum` becomes:
+
+.. math::
+   :label: eqn-iterative_finite_sum
+
+    \overrightarrow{y_\gamma} = B_{\gamma i}^\star  \overrightarrow{s_i} - B_{\gamma i}^\star  \sum_{\alpha  \neq \gamma} {B}'_{i\alpha}  \overrightarrow{y_\alpha} 
+
+And new DCR-matched template images are calculated from the resulting model with:
+
+.. math::
+   :label: eqn-finite_template
+
+    \parallel \overrightarrow{s_k}\!\!\parallel  = \sum_\alpha {B}'_{k\alpha}  \overrightarrow{y_\alpha}
+
+While the above approximations may be unnecessary for low airmass observations, they are also not hurt by making it.
+It is possible to use equations :eq:`eqn-basic_sum` - :eq:`eqn-basic_template` for observations where the DCR within sub-bands is small and equations :eq:`eqn-finite_sum` - :eq:`eqn-finite_template` otherwise, but since the approximation improves as the amount of DCR across a sub-band decreases it seems safe to use for all observations.
+We may still end up wishing to use the simple shift for low airmass observations if there is a performance difference, however.
 
 Extension to variable seeing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
