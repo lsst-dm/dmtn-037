@@ -236,7 +236,6 @@ A proper inverse-variance weighting of the input images as part of the coadditio
 An advantage of selecting the simple coadd as the starting point, is that the solution should immediately converge if the input data exhibits no actual DCR effects, such as redder bands (*i*-band or redder for LSST) or zenith observations.
 However, since this image is only the starting point of an iterative process, the final solution should not be sensitive to small errors at this stage.
 
-
 Conditioning the iterative solution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -249,7 +248,8 @@ Some useful types of conditioning include:
   This eliminates most instances of oscillating solutions, since it restricts the relative change of the solution between iterations.
   In the current implementation, the weights are chosen to be the convergence metrics of the two solutions, which allows the overall solution to converge rapidly when possible but cautiously if the solutions oscillate.
   While the increased rate towards convergence is helpful for well behaved data, the greatest benefit appears when using larger numbers of subfilters.
-
+  Adding more subfilters beyond the standard three increases the number of degrees of freedom of the problem and increases the susceptibility to unstable and diverging solutions.
+  Using the dynamic weights calculated from the convergence metric allows the solution to make small improvements 
 
 * Threshold the solutions.
   Instead of solutions diverging through solutions oscillating between iterations, the solution might 'oscillate' between model planes.
@@ -262,7 +262,6 @@ Some useful types of conditioning include:
   For example, we could calculate the slope (or higher derivatives) of the spectrum for every pixel in the model across the sub-bands, and apply a threshold.
   Any values deviating more than a set amount from the line (or higher order curve) fit by that slope could be fixed to the fit instead, and minimum and maximum slopes could be set.
   While I have written an option within the DCR modeling code to enforce this sort of regularization, in practice I have found the additional benefit to be negligible when combined with the preceding forms of conditioning, and leave it turned off by default.
-
 
 Weighting the input data
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -316,7 +315,6 @@ Possible end conditions include:
 Note that if a convergence test is used, it should only be allowed to exit the loop after a minimum number of iterations have passed.
 It will depend on how the convergence metric is calculated and the choice of initial solution, but the first iteration can show a slight degradation of convergence.
 
-
 Examples with simulated images
 ------------------------------
 
@@ -341,11 +339,14 @@ Note that the noise in :numref:`fig-sim_template_diff` is :math:`\sim \sqrt{2}` 
    :name: fig-sim_template_diff
 
    Image difference of the simulated image :numref:`fig-sim_image` with its template from :numref:`fig-sim_template`.
+   The image difference is taken as a direct pixel subtraction, rather than an Alard & Lupton or ZOGY style subtraction.
+   While those more sophisticated styles of subtraction are used in production, here the emphasis is on comparing the raw differences, before PSF matching or other corrections.
 
 .. figure:: /_static/simulations/simulated_image_108_112_difference.png
    :name: fig-sim_image_diff
 
    Image difference of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
+   As in :numref:`fig-sim_template_diff` above, this image difference is a direct pixel subtraction and not an Alard & Lupton or ZOGY style subtraction.
 
 Dipole mitigation
 ^^^^^^^^^^^^^^^^^^
@@ -401,7 +402,6 @@ Adding variable the PSFs from :eq:`eqn-psf_iterative_sum` will increase the time
 The DCR Sky Model
 =================
 
-
 The DCR sky model :math:`\overrightarrow{y_\alpha}` from :eq:`eqn-iterative_sum`  consists of a deep coadd in each subfilter :math:`\alpha`.
 As with other coadds, the images are defined on instrument-agnostic tracts and patches of the sky, and must be warped to the WCS of the science image after constructing templates with :eq:`eqn-basic_template`.
 While the sky model was designed for quickly building matched templates for image differencing, it is an interesting data product in its own right.
@@ -410,13 +410,11 @@ An example visualization of the sub-bands of the DCR sky model is in :numref:`fi
 This view can help identify sources with steep or unusual spectra, such as quasars with high emission in a narrow band, and could be used to help deblending and star-galaxy separation.
 However, because of the inherent assumption that the true sky is static it cannot estimate the spectrum of transient or variable sources.
 
-
 .. figure:: /_static/sim_filled_footprints_color2.png
    :name: fig-filled_footprints
 
    Source measurements in three sub-bands of the DCR sky model are converted to RGB values and used to fill the footprints of detected sources.
    The combined full-band model is displayed behind the footprint overlay.
-
 
 Simulated source spectra
 ------------------------
