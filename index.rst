@@ -426,31 +426,31 @@ To measure the subfilter source spectra, I run a modified version of multiband p
 This performs source detection on each subfilter coadd image, merges the detections from all subfilters, and performs forced photometry on each.
 A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_bright1` - :numref:`fig-starspectrum_faint` below.
 
-.. figure:: /_static/spectra/star_spectra_sim398_bright.png
+.. figure:: /_static/spectra/new/star_spectra_sim436_bright.png
    :name: fig-starspectrum_bright1
 
-   Example input spectrum for a type F star with surface temperature ~7230K (solid blue).
+   Example input spectrum for a type F star with surface temperature ~7130K (solid blue).
    The flux measured in each sub-band is marked with a with red '+', and the average values of the simulated spectrum across each subfilter is marked with a blue 'x' for comparison.
 
-.. figure:: /_static/spectra/star_spectra_sim399_bright.png
+.. figure:: /_static/spectra/new/star_spectra_sim423_bright.png
    :name: fig-starspectrum_bright2
 
-   Example input spectrum for a type F star with surface temperature ~6020K (solid blue).
+   Example input spectrum for a type F star with surface temperature ~6370K (solid blue).
    The symbols are as :numref:`fig-starspectrum_bright1`.
 
-.. figure:: /_static/spectra/star_spectra_sim300_mid.png
+.. figure:: /_static/spectra/new/star_spectra_sim324_mid.png
    :name: fig-starspectrum_mid
 
-   Example input spectrum for a type G  star with surface temperature ~5560K (solid blue).
+   Example input spectrum for a type G  star with surface temperature ~5420K (solid blue).
    The symbols are as :numref:`fig-starspectrum_bright1`.
 
-.. figure:: /_static/spectra/star_spectra_sim200_bright.png
+.. figure:: /_static/spectra/new/star_spectra_sim262_mid.png
    :name: fig-starspectrum_mid2
 
-   Example input spectrum for a type K  star with surface temperature ~4560K (solid blue).
+   Example input spectrum for a type K  star with surface temperature ~4610K (solid blue).
    The symbols are as :numref:`fig-starspectrum_bright1`.
 
-.. figure:: /_static/spectra/star_spectra_sim004_faint.png
+.. figure:: /_static/spectra/new/star_spectra_sim006_faint.png
    :name: fig-starspectrum_faint
 
    Example input spectrum for a type M star with surface temperature ~3620K (solid blue).
