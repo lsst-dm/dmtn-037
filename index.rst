@@ -8,8 +8,6 @@
 
 .. note::
 
-   **This technote is not yet published.**
-
    A description of the algorithm to calculate a model of the true sky and forward model atmospheric effects to create matched templates.
 
 .. sectnum::
