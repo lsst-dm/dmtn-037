@@ -359,7 +359,8 @@ The DCR-matched template appears to perform about as well as an exposure taken w
    :name: fig-dcr_dipoles
 
    Plot of the number of false detections for simulated images as a function of airmass, for different templates.
-   At 5 :math:`\sigma` we should expect ~1 false detection due to noise.
+   For the "0 degree separation" difference images (dashed line), the simulated images were re-generated with the same observing conditions but a different realization of the noise.
+   This provides an estimate of the minimum number of false positives that should be expected for these simulations.
 
 Examples with DECam images
 --------------------------
