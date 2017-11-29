@@ -332,6 +332,7 @@ Note that the noise in :numref:`fig-sim_template_diff` is :math:`\sim \sqrt{2}` 
    :name: fig-sim_template
 
    The DCR-matched template for the simulated image in :numref:`fig-sim_image`.
+   Because the template consists of a coaddition of multiple images, the noise is significantly reduced.
 
 .. figure:: /_static/simulations/simulated_image_108_template_difference.png
    :name: fig-sim_template_diff
@@ -345,6 +346,8 @@ Note that the noise in :numref:`fig-sim_template_diff` is :math:`\sim \sqrt{2}` 
 
    Image difference of :numref:`fig-sim_image` with another simulation of the same field 10 degrees closer to zenith (airmass 1.22).
    As in :numref:`fig-sim_template_diff` above, this image difference is a direct pixel subtraction and not an Alard & Lupton or ZOGY style subtraction.
+   By eye, there are significantly more mis-subtractions than when using the matched template (:numref:`fig-sim_template_diff`), which results in an increase in the number of false detections.
+   See :numref:`fig-dcr_dipoles` for a quantitative evaluation of the number of false positives when using different templates for subtraction.
 
 Dipole mitigation
 ^^^^^^^^^^^^^^^^^^
@@ -353,13 +356,14 @@ A quantitative assessment of the quality of the template from :numref:`fig-sim_t
 Since there are no moving or variable sources in these simulated images, any source detected in the image difference is a false detection.
 From comparing  :numref:`fig-sim_template_diff` and :numref:`fig-sim_image_diff` it is clear by eye that the DCR-matched template produces fewer dipoles, and we can see in :numref:`fig-dcr_dipoles` that this advantage holds regardless of airmass or elevation angle.
 The DCR-matched template appears to perform about as well as an exposure taken within 5 degrees of the science image, but recall that the noise - and therefore the detection limit - is higher when using a single image as a template.
-
+While the difference images of :numref:`fig-sim_template_diff` and :numref:`fig-sim_image_diff` above simply performed direct subtraction of the pixels, here I use an Alard & Lupton-style image difference using the LSST software stack to detect sources.
 
 .. figure:: /_static/simulations/DCR_dipole_plot.png
    :name: fig-dcr_dipoles
 
    Plot of the number of false detections for simulated images as a function of airmass, for different templates.
-   At 5 :math:`\sigma` we should expect ~1 false detection due to noise.
+   For the "0 degree separation" difference images (dashed line), the simulated images were re-generated with the same observing conditions but a different realization of the noise.
+   This provides an estimate of the minimum number of false positives that should be expected for these simulations.
 
 Examples with DECam images
 --------------------------
