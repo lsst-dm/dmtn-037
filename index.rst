@@ -425,56 +425,60 @@ Simulated source spectra
 As mentioned above, we can look in more detail at the spectra of individual sources.
 The simulated images contain roughly 2500 stars ranging from type M to type B, with a distribution that follows local abundances.
 Each star is simulated at high frequency resolution using Kurucz SED profiles and propagated through a model of the LSST g-band filter bandpass, so it is straightforward to compare the measured spectrum of a source to its input spectrum once it is matched.
-To measure the subfilter source spectra, I run a modified version of multiband photometry from the LSST software stack.
+To measure the subfilter source spectra, I run multiband photometry from the LSST software stack with :code:`coaddName=dcr` set.
 This performs source detection on each subfilter coadd image, merges the detections from all subfilters, and performs forced photometry on each.
-A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_bright1` - :numref:`fig-starspectrum_faint` below.
+A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_A` - :numref:`fig-starspectrum_K2` below.
 
-.. figure:: /_static/spectra/new/star_spectra_sim436_bright.png
-   :name: fig-starspectrum_bright1
+.. figure:: /_static/spectra/spectrum_A8167.png
+   :name: fig-starspectrum_A
 
-   Example input spectrum for a type F star with surface temperature ~7130K (solid blue).
-   The flux measured in each sub-band is marked with a with red '+', and the average values of the simulated spectrum across each subfilter is marked with a blue 'x' for comparison.
+   Example input spectrum for a type A star with surface temperature ~8167K (solid blue).
+   The flux measured in each of five sub-bands is marked with a '+', and the average values of the simulated spectrum across each subfilter is marked with a blue 'x' for comparison.
+   Two measurements are plotted for each sub-band: the result from ending forward modeling when the convergence metric reached 1% in red, and 0.1% in orange.
 
-.. figure:: /_static/spectra/new/star_spectra_sim423_bright.png
-   :name: fig-starspectrum_bright2
 
-   Example input spectrum for a type F star with surface temperature ~6370K (solid blue).
-   The symbols are as :numref:`fig-starspectrum_bright1`.
+.. figure:: /_static/spectra/spectrum_F6909.png
+   :name: fig-starspectrum_F
 
-.. figure:: /_static/spectra/new/star_spectra_sim324_mid.png
-   :name: fig-starspectrum_mid
+   Example input spectrum for a type F star with surface temperature ~6909K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_A`.
 
-   Example input spectrum for a type G  star with surface temperature ~5420K (solid blue).
-   The symbols are as :numref:`fig-starspectrum_bright1`.
+.. figure:: /_static/spectra/spectrum_G5991.png
+   :name: fig-starspectrum_G
 
-.. figure:: /_static/spectra/new/star_spectra_sim262_mid.png
-   :name: fig-starspectrum_mid2
+   Example input spectrum for a type G  star with surface temperature ~5991K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_A`.
 
-   Example input spectrum for a type K  star with surface temperature ~4610K (solid blue).
-   The symbols are as :numref:`fig-starspectrum_bright1`.
+.. figure:: /_static/spectra/spectrum_K5006.png
+   :name: fig-starspectrum_K1
 
-.. figure:: /_static/spectra/new/star_spectra_sim006_faint.png
-   :name: fig-starspectrum_faint
+   Example input spectrum for a type K  star with surface temperature ~5006K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_A`.
 
-   Example input spectrum for a type M star with surface temperature ~3620K (solid blue).
-   The symbols are as :numref:`fig-starspectrum_bright1`.
+.. figure:: /_static/spectra/spectrum_K3907.png
+   :name: fig-starspectrum_K2
+
+   Example input spectrum for a type K star with surface temperature ~3907K (solid blue).
+   The symbols are as :numref:`fig-starspectrum_A`.
 
 While the above spectra are representative of the typical stars in the simulation, it is helpful to look at the entire set.
 For this comparison, in :numref:`fig-colorcolor01` below I plot the simulated color between the blue and the red subfilters against the measured color, ignoring the center subfilter.
 For this example, I let the forward modeling proceed until it reached 1% convergence, which took 8 iterations.
 While there is a clear correlation between the measured and simulated spectra the slope is clearly off, with the measurements flatter than the simulations.
-If a 0.1% convergence threshold is used, however, then after 24 iterations the agreement improves (:numref:`fig-colorcolor001`).
-The example spectra in :numref:`fig-starspectrum_bright1` - :numref:`fig-starspectrum_faint` above used the 0.1% threshold.
+If a 0.1% convergence threshold is used, however, then after 50 iterations the agreement improves (:numref:`fig-colorcolor001`).
+The example spectra in :numref:`fig-starspectrum_A` - :numref:`fig-starspectrum_K2` above used the 0.1% threshold.
 
 .. figure:: /_static/spectra/color-color_sim01.png
    :name: fig-colorcolor01
 
    Simulated - measured color of detected sources within g-band with a 1% convergence threshold.
+   Convergence was reached after 8 iterations of forward modeling.
 
 .. figure:: /_static/spectra/color-color_sim001.png
    :name: fig-colorcolor001
 
    Simulated - measured color of detected sources within g-band with a 0.1% convergence threshold.
+   Convergence was reached after 50 iterations of forward modeling.
 
 .. Comment out this figure for now
   .. figure:: /_static/spectra/color-color_sim003.png
