@@ -425,9 +425,9 @@ Simulated source spectra
 As mentioned above, we can look in more detail at the spectra of individual sources.
 The simulated images contain roughly 2500 stars ranging from type M to type B, with a distribution that follows local abundances.
 Each star is simulated at high frequency resolution using Kurucz SED profiles and propagated through a model of the LSST g-band filter bandpass, so it is straightforward to compare the measured spectrum of a source to its input spectrum once it is matched.
-To measure the subfilter source spectra, I run multiband photometry from the LSST software stack with :code:`coaddName=dcr` set.
+To measure the subfilter source spectra, I run multiband photometry from the LSST multiband processing framework [1]_ with :code:`coaddName=dcr` set.
 This performs source detection on each subfilter coadd image, merges the detections from all subfilters, and performs forced photometry on each.
-A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_A` - :numref:`fig-starspectrum_K2` below.
+A few example comparison spectra for a range of stellar types are in :numref:`fig-starspectrum_A` - :numref:`fig-starspectrum_K2` below [2]_.
 
 .. figure:: /_static/spectra/spectrum_A8167.png
    :name: fig-starspectrum_A
@@ -485,6 +485,10 @@ The example spectra in :numref:`fig-starspectrum_A` - :numref:`fig-starspectrum_
      :name: fig-colorcolor003
 
      Simulated - measured color of detected sources within g-band with a 0.3% convergence threshold.
+
+.. [1] The LSST multiband processing framework used for these examples was version :code:`w_2018_43` of the :code:`lsst_distrib` codebase.
+
+.. [2] Previous versions of this document used a prototype implementation of the algorithm to generate the DCR models used for source measurement in `Simulated source spectra`_ . A careful reader will note a few differences in the plots in this section: the number of DCR subfilters, and consequently the number of measurements of each spectrum, has been increased from 3 to 5, which is due to improvements in the stability of the algorithm that support higher numbers of subfilters. Additionally, there is now greater scatter in the recovered color vs simulated color plots (:numref:`fig-colorcolor01` and :numref:`fig-colorcolor001`). The new implementation includes astrometric calibration, which in the case of simulations introduces slight position errors due to fitting sources affected by DCR. 
 
 Appendix: Refraction calculation
 ==================================
