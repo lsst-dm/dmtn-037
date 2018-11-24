@@ -1,10 +1,8 @@
-
-
-
-
 :tocdepth: 1
 
 .. Please do not modify tocdepth; will be fixed when a new Sphinx theme is shipped.
+
+**DOI:** `10.5281/zenodo.1492936 <https://doi.org/10.5281/zenodo.1492936>`_
 
 .. note::
 
